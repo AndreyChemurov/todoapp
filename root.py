@@ -1,8 +1,15 @@
 from user import *
-from exceptions import *
+from exceptions import LoginException
 from database import *
 
 import sys
+import pickle
+
+
+def database_info_collection():
+    # Collect data (name: password) from DB (table) 'users'
+    # no files (!) like 'users.pkl'
+    pass
 
 
 def login():
@@ -16,29 +23,36 @@ def login():
             if not name:
                 continue
 
-            if name not in users:
-                confirm_new_user = input('No "{}" user found. Create? [Y/N]: '.format(name))
-                if confirm_new_user in ('y', 'Y'):
-                    new_user_password = input('Enter password: ')
-                    new_user_password_confirm = input('Confirm password: ')
+            with open('users.pkl', 'rb') as file:
+                u = pickle.load(file)
 
-                    if new_user_password == new_user_password_confirm:
-                        new_user = User(name=name, password=new_user_password)
-                        users.update({name: new_user})
+                if name not in u:
+                    confirm_new_user = input('No "{}" user found. Create? [Y/N]: '.format(name))
+                    if confirm_new_user in ('y', 'Y'):
+                        new_user_password = input('Enter password: ')
+                        new_user_password_confirm = input('Confirm password: ')
+
+                        if new_user_password == new_user_password_confirm:
+                            new_user = User(name=name, password=new_user_password)
+                            u.update({name: new_user})
+
+                            Database(u[name].get_dbname(), u[name].get_name(), 'localhost',
+                                     u[name].get_password()).connect()
+
+                            with open('users.pkl', 'wb') as file:
+                                pickle.dump(u, file, pickle.HIGHEST_PROTOCOL)
+                        else:
+                            raise LoginException('Password mismatch.')
                     else:
-                        raise LoginException('Password mismatch.')
+                        raise LoginException('Login failed.')
                 else:
-                    raise LoginException('Login failed.')
-            else:
-                u = users[name]
-                Database(u.get_name(), u.get_name(), 'localhost', u.get_password()).connect()
+                    Database(u[name].get_dbname(), u[name].get_name(), 'localhost', u[name].get_password()).connect()
         except Exception as e:
             print(e)
 
 
-def main():
-    login()
-
-
 if __name__ == '__main__':
-    main()
+    # with open('users.pkl', 'wb') as file:
+    #     pickle.dump({'test': None}, file, pickle.HIGHEST_PROTOCOL)
+
+    login()
