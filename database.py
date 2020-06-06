@@ -1,83 +1,96 @@
 import psycopg2
 from psycopg2 import sql
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-from exceptions import DatabaseConnectionException
-
-import pickle
+from exceptions import *
+from config import POSTGRES_CONFIG, COMMANDS
 
 
-class Database:
-    def __init__(self, dbname: str, user: str, host: str, password: str):
-        self.dbname = dbname
-        self.user = user
-        self.host = host
-        self.password = password
-        self.connection = None
-        self.cursor = None
+def database_info_collection(name: str):
+    connection, cursor = None, None
 
-    def connect(self):
-        connection_str = \
-            "dbname='{}' ".format(self.dbname) + \
-            "user='{}' ".format(self.user) + \
-            "host='{}' ".format(self.host) + \
-            "password='{}'".format(self.password)
+    try:
+        connection = psycopg2.connect(dbname=POSTGRES_CONFIG['POSTGRES_DBNAME'],
+                                      user=POSTGRES_CONFIG['POSTGRES_USER'],
+                                      host=POSTGRES_CONFIG['POSTGRES_HOST'],
+                                      password=POSTGRES_CONFIG['POSTGRES_PASSWORD'])
+        cursor = connection.cursor()
+        cursor.execute(sql.SQL("SELECT * FROM users;"))
+        users = cursor.fetchall()
+    finally:
+        connection.commit()
+        cursor.close()
+        connection.close()
 
-        with open('users.pkl', 'rb') as file:
-            databases = pickle.load(file)
+    match = [user for user in users if name == user[1]]
 
-            if self.dbname not in databases:
-                self.create_database()
-
-                self.connection = psycopg2.connect(connection_str)
-                self.cursor = self.connection.cursor()
-
-                self.cursor.execute(sql.SQL("""
-                    CREATE TABLE todos 
-                    (
-                        id serial PRIMARY KEY,
-                        task_name TEXT,
-                        date_and_time TIMESTAMP,
-                        comment TEXT
-                    );
-                """))
-
-                self.connection.commit()
-                self.cursor.close()
-                self.connection.close()
-            else:
-                password = input('Enter password: ')
-
-                if password != self.password:
-                    raise DatabaseConnectionException('Incorrect password for "{}".'.format(self.user))
-
-                self.connection = psycopg2.connect(connection_str)
-                self.cursor = self.connection.cursor()
-                todos_action(self.connection, self.cursor, self.user)
-
-    def create_database(self):
-        self.connection = psycopg2.connect(dbname='begin', user='begin', host='localhost', password='123')
-        self.connection.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-
-        self.cursor = self.connection.cursor()
-
-        self.cursor.execute(sql.SQL("CREATE DATABASE {};".format(self.dbname)))
-        self.cursor.execute(sql.SQL("CREATE USER {} WITH ENCRYPTED PASSWORD '{}';".format(self.user, self.password)))
-        self.cursor.execute(sql.SQL("GRANT ALL PRIVILEGES ON DATABASE {} TO {};".format(self.dbname, self.user)))
-        self.cursor.execute(sql.SQL("ALTER USER {} CREATEDB;".format(self.user)))
-        self.cursor.execute(sql.SQL("ALTER USER {} WITH SUPERUSER;".format(self.user)))
-        self.cursor.execute(sql.SQL("ALTER USER {} WITH CREATEROLE;".format(self.user)))
-        self.cursor.execute(sql.SQL("ALTER USER {} WITH REPLICATION;".format(self.user)))
-        self.cursor.execute(sql.SQL("ALTER USER {} WITH BYPASSRLS;".format(self.user)))
-
-        self.connection.commit()
-        self.cursor.close()
-        self.connection.close()
+    if not match:
+        return None
+    else:
+        return (match[0][1], match[0][2]) if match[0][1] == name else None
 
 
-def todos_action(connection, cursor, user):
+def create_new_user(name: str):
     while True:
-        command = input(f'({user})> ')
+        creation = input(f'No "{name}" user found. Create? [y/n]: ')
 
-        if command == 'exit':
+        if creation in ('n', 'N'):
+            raise LoginException('Creation canceled.')
+
+        if not creation:
+            continue
+
+        if creation in ('y', 'Y'):
+            connection, cursor = None, None
+            password = input(f'Enter password for "{name}": ')
+
+            try:
+                connection = psycopg2.connect(dbname=POSTGRES_CONFIG['POSTGRES_DBNAME'],
+                                              user=POSTGRES_CONFIG['POSTGRES_USER'],
+                                              host=POSTGRES_CONFIG['POSTGRES_HOST'],
+                                              password=POSTGRES_CONFIG['POSTGRES_PASSWORD'])
+                cursor = connection.cursor()
+
+                cursor.execute(sql.SQL(f"INSERT INTO users (user_id, username, password) VALUES "
+                                       f"(DEFAULT, '{name}', '{password}');"))
+
+                cursor.execute(sql.SQL(f'CREATE TABLE {name}_todos ('
+                                       f'id serial PRIMARY KEY, '
+                                       f'task_name TEXT,'
+                                       f'date_and_time TIMESTAMP,'
+                                       f'comment TEXT);'))
+
+            except Exception as e:
+                print(e)
+            finally:
+                connection.commit()
+                cursor.close()
+                connection.close()
+                break
+        else:
+            raise LoginException('Wrong parameter. Only "y(Y), n(N)" allowed.')
+
+
+def serve_current_user(user: tuple):
+    username, password = user[0], user[1]
+
+    while True:
+        confirm_password = input(f'Enter password for "{username}": ')
+
+        if not confirm_password:
+            continue
+
+        if password != confirm_password:
+            raise DatabaseConnectionException(f'Wrong password for "{username}".')
+        else:
             break
+
+    run = True
+    while run:
+        g_commands = COMMANDS
+        commands = input(f'({username})> ').split()
+
+        for command in commands:
+            if command in g_commands:
+                g_commands = g_commands[command]
+            else:
+                pass
