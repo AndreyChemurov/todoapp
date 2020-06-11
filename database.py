@@ -2,7 +2,7 @@ import psycopg2
 from psycopg2 import sql
 
 from exceptions import *
-from config import POSTGRES_CONFIG, COMMANDS
+from config import *
 
 
 def database_info_collection(name: str):
@@ -85,12 +85,49 @@ def serve_current_user(user: tuple):
             break
 
     run = True
+    connection, cursor = None, None
     while run:
-        g_commands = COMMANDS
-        commands = input(f'({username})> ').split()
+        try:
+            connection = psycopg2.connect(dbname=POSTGRES_CONFIG['POSTGRES_DBNAME'],
+                                          user=POSTGRES_CONFIG['POSTGRES_USER'],
+                                          host=POSTGRES_CONFIG['POSTGRES_HOST'],
+                                          password=POSTGRES_CONFIG['POSTGRES_PASSWORD'])
+            cursor = connection.cursor()
 
-        for command in commands:
-            if command in g_commands:
-                g_commands = g_commands[command]
+            commands = input(f'({username})> ').split()
+
+            if not commands:
+                continue
+
+            if commands[0] == 'exit':
+                print('Exit.')
+                break
+
+            if commands[0] not in COMMANDS:
+                print('Wrong command.')
+                continue
             else:
-                pass
+                parse_command(commands, username, cursor)
+        except Exception as e:
+            print(e)
+        finally:
+            connection.commit()
+            cursor.close()
+            connection.close()
+
+
+def parse_command(commands, username, cursor):
+    cp_cmds = COMMANDS
+
+    while commands:
+        c = commands[0]
+        if c in cp_cmds:
+            cp_cmds = cp_cmds[c]
+            commands.pop(0)
+        else:
+            cp_cmds[0](commands, username, cursor)
+            return
+
+    cp_cmds[0](username, cursor)
+
+
