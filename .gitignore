@@ -7,3 +7,4 @@ test_connection.py
 test_search.py
 test_commands.py
 test_keypress.py
+test.py
