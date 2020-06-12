@@ -154,7 +154,19 @@ def delete_today(username, cursor):
 
 
 def delete_by_index(command, username, cursor):
-    pass
+    try:
+        index = int(command[0])
+    except ValueError:
+        print('Index must be int.')
+        raise
+
+    cursor.execute(sql.SQL(f"DELETE FROM {username}_todos WHERE id = {index};"))
+    match = cursor.fetchall()
+
+    if not match:
+        raise DatabaseConnectionException(f'No such task with index {index}.')
+    else:
+        print(f'Deleted {index}.')
 
 
 def delete_by_date(command, username, cursor):
