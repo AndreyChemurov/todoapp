@@ -2,7 +2,7 @@
 Консольное приложение TODO-list с использованием postgres. В программе есть возможность создавать аккаунт (имя и пароль), вход и выход из аккаунта. <br />
 Все пользователи (username, password) хранятся в таблице users. <br />
 При создании нового пользователя создается таблица username_todos, в которую будут добавляться задания. <br />
-  <username>_todos состоит из 4 столбцов: id SERIAL PRIMARY KEY, task_name TEXT, date_and_time TIMESTAMP, comment TEXT. <br />
+username_todos состоит из 4 столбцов: id SERIAL PRIMARY KEY, task_name TEXT, date_and_time TIMESTAMP, comment TEXT. <br />
 **Команды (для текущего пользователя):**
 * show all - выводит все имеющиеся задания.
 * show today - выводит все имеющиеся сегодня задания.
